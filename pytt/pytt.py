@@ -61,7 +61,39 @@ def cat_file(obj):
     This implementation assumes the -p flag is passed, i.e. it always pretty
     prints the object.
     """
-    pass
+    sha = (_resolve_object_sha(obj))
+    path = _object_path(sha)
+    
+    with open(path, 'rb') as f:
+        content = zlib.decompress(f.read())
+
+    # Copy-pasted
+    [header, data] = content.split(b'\0', 1)
+    if header.startswith(b'blob'):
+        try:
+            print(data.decode())
+        except UnicodeDecodeError:
+            log.debug('Unable to decode, printing as is')
+            print(data)
+    elif header.startswith(b'tree'):
+        tree_object = Tree.from_string(data)
+        for entry in tree_object.entries:
+            mode = entry.mode.decode()
+            if mode == '40000':
+                mode = '0' + mode
+                object_type = 'tree'
+            else:
+                object_type = 'blob'
+            print('%s %s %s\t%s' % (
+                mode, object_type, entry.sha1, entry.name.decode()))
+    elif header.startswith(b'commit'):
+        commit_object = Commit.from_string(data)
+        print('tree %s' % commit_object.tree.decode())
+        for parent in commit_object.parents:
+            print('parent %s' % parent.decode())
+        print('author %s' % commit_object.author)
+        print('committer %s' % commit_object.committer)
+        print('\n%s' % commit_object.message.decode())
 
 
 def hash_object(data, write=False, object_type='blob'):
@@ -94,6 +126,7 @@ def ls_files():
 
 def update_index(mode, sha, filename):
     """Add the object (blob or tree) to the index with the mode and name."""
+    
     pass
 
 
